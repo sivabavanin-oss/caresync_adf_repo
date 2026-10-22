@@ -70,7 +70,10 @@
 				"typeProperties": {
 					"notebookPath": "/caresync-repo/caresync_adb_repo/Landing_to_Bronze",
 					"baseParameters": {
-						"source_file_format": "parquet",
+						"source_file_format": {
+							"value": "@coalesce(activity('Read Table Details').output.firstRow.source_file_format,'')",
+							"type": "Expression"
+						},
 						"table_name": {
 							"value": "@activity('Read Table Details').output.firstRow.bronze_table_name",
 							"type": "Expression"
