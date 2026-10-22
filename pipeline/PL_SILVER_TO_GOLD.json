@@ -34,8 +34,6 @@
 			{
 				"name": "Ingest all tables",
 				"type": "ForEach",
-				"state": "Inactive",
-				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [
 					{
 						"activity": "Read source tables list",
@@ -52,39 +50,6 @@
 					},
 					"isSequential": false,
 					"activities": [
-						{
-							"name": "Ingest from Source to Silver",
-							"type": "ExecutePipeline",
-							"dependsOn": [
-								{
-									"activity": "Audit In progress entry",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_SOURCE_TO_SILVER_INNER",
-									"type": "PipelineReference"
-								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"table_id": {
-										"value": "@item().table_id",
-										"type": "Expression"
-									},
-									"adf_run_id": {
-										"value": "@pipeline().parameters.adf_run_id",
-										"type": "Expression"
-									}
-								}
-							}
-						},
 						{
 							"name": "Audit In progress entry",
 							"type": "Script",
@@ -106,7 +71,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "INSERT into ctrl.audit_log (adf_run_id,table_id,stage,status,start_time) VALUES('@{pipeline().parameters.adf_run_id}',@{item().table_id},'SOURCE_TO_SILVER','IN_PROGRESS',SYSUTCDATETIME())",
+											"value": "INSERT into ctrl.audit_log (adf_run_id,table_id,stage,status,start_time) VALUES('@{pipeline().parameters.adf_run_id}',@{item().table_id},'SILVER_TO_GOLD','IN_PROGRESS',SYSUTCDATETIME())",
 											"type": "Expression"
 										}
 									}
@@ -119,7 +84,7 @@
 							"type": "Script",
 							"dependsOn": [
 								{
-									"activity": "Ingest from Source to Silver",
+									"activity": "Silver to Gold",
 									"dependencyConditions": [
 										"Failed"
 									]
@@ -143,6 +108,90 @@
 										"type": "Query",
 										"text": {
 											"value": "update ctrl.audit_log set status='FAILED', end_time=SYSUTCDATETIME() where adf_run_id='@{pipeline().parameters.adf_run_id}' and table_id=@{item().table_id}",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Silver to Gold",
+							"type": "DatabricksNotebook",
+							"dependsOn": [
+								{
+									"activity": "Audit In progress entry",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"notebookPath": {
+									"value": "/caresync-repo/caresync_adb_repo/Gold/NB_@{item().gold_table_name}",
+									"type": "Expression"
+								},
+								"baseParameters": {
+									"source_file_format": {
+										"value": "@coalesce(activity('Read Table Details').output.firstRow.source_file_format,'')",
+										"type": "Expression"
+									},
+									"table_name": {
+										"value": "@activity('Read Table Details').output.firstRow.bronze_table_name",
+										"type": "Expression"
+									},
+									"landing_timestamp": {
+										"value": "@variables('start_time')",
+										"type": "Expression"
+									},
+									"source_system": {
+										"value": "@activity('Read Table Details').output.firstRow.source_system",
+										"type": "Expression"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureDatabricks1",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "update success entry",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "Silver to Gold",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase1",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "update ctrl.audit_log set status='SUCCESS', end_time=SYSUTCDATETIME(), records_written=@{activity('Silver to Gold').output.runOutput} where adf_run_id='@{pipeline().parameters.adf_run_id}' and table_id=@{item().table_id}",
 											"type": "Expression"
 										}
 									}
