@@ -180,6 +180,23 @@
 								],
 								"scriptBlockExecutionTimeout": "02:00:00"
 							}
+						},
+						{
+							"name": "Failg",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Silver to Gold",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "Failed",
+								"errorCode": "500"
+							}
 						}
 					]
 				}
