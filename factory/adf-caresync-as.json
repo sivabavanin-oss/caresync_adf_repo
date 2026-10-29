@@ -1,0 +1,12 @@
+{
+	"name": "adf-caresync-as",
+	"properties": {
+		"globalParameters": {
+			"email_recipient": {
+				"type": "string",
+				"value": "sivabavanin@gmail.com"
+			}
+		}
+	},
+	"location": "centralus"
+}
